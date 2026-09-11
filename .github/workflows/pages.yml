@@ -21,17 +21,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Rebuild site archive
+      - name: Unpack Alfred Analytics site
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf _build _site
           mkdir -p _build _site
-          cat $(find .sitechunks -maxdepth 1 -type f -name 'part-*' | sort) > _build/site.tar.xz.b64
-          base64 --decode _build/site.tar.xz.b64 > _build/site.tar.xz
-          tar -xJf _build/site.tar.xz -C _build
+          test -f Alfred_Analytics_Antifraud_Site.zip
+          unzip -q Alfred_Analytics_Antifraud_Site.zip -d _build
+          test -d _build/alfred_analytics_site
           cp -a _build/alfred_analytics_site/. _site/
           touch _site/.nojekyll
           test -f _site/index.html
+          test -f _site/assets/styles.css
+          test -d _site/articles
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
