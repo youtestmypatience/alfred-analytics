@@ -1,0 +1,46 @@
+name: Expand Data Vault project into browsable source files
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "Data_Vault_Knowledge_Base.zip"
+      - ".github/workflows/unpack-data-vault.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Expand the versioned Data Vault project archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f Data_Vault_Knowledge_Base.zip
+          mkdir -p _dv_import data-vault
+          unzip -q Data_Vault_Knowledge_Base.zip -d _dv_import
+          test -f _dv_import/site/index.html
+          test -f _dv_import/supabase/001_progress.sql
+          rsync -a --delete _dv_import/ data-vault/
+
+      - name: Commit fully browsable project source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data-vault
+          if git diff --cached --quiet; then
+            echo "Data Vault source is current"
+          else
+            git commit -m "Expand Data Vault HTML, Markdown and Supabase SQL sources"
+            git push origin HEAD:main
+          fi
