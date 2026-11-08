@@ -1,4 +1,4 @@
-name: Deploy Alfred Analytics to GitHub Pages
+name: Deploy Alfred Analytics and Data Vault to GitHub Pages
 
 on:
   push:
@@ -21,20 +21,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Unpack Alfred Analytics site
+      - name: Build both knowledge bases
         shell: bash
         run: |
           set -euo pipefail
           rm -rf _build _site
-          mkdir -p _build _site
+          mkdir -p _build/antifraud _build/data-vault _site
+          # Preserve the original Alfred Analytics antifraud website.
           test -f Alfred_Analytics_Antifraud_Site.zip
-          unzip -q Alfred_Analytics_Antifraud_Site.zip -d _build
-          test -d _build/alfred_analytics_site
-          cp -a _build/alfred_analytics_site/. _site/
-          touch _site/.nojekyll
+          unzip -q Alfred_Analytics_Antifraud_Site.zip -d _build/antifraud
+          test -d _build/antifraud/alfred_analytics_site
+          cp -a _build/antifraud/alfred_analytics_site/. _site/
           test -f _site/index.html
           test -f _site/assets/styles.css
           test -d _site/articles
+          # Deploy the Data Vault site at a separate URL.
+          test -f Data_Vault_Knowledge_Base.zip
+          unzip -q Data_Vault_Knowledge_Base.zip -d _build/data-vault
+          test -f _build/data-vault/site/index.html
+          test -f _build/data-vault/site/assets/app.js
+          test -f _build/data-vault/site/assets/auth.js
+          mkdir -p _site/data-vault
+          cp -a _build/data-vault/site/. _site/data-vault/
+          touch _site/.nojekyll _site/data-vault/.nojekyll
+          test -f _site/data-vault/module-12.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
