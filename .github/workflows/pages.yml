@@ -26,8 +26,8 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf _build _site
-          mkdir -p _build/antifraud _build/data-vault _site
-          # Preserve the original Alfred Analytics antifraud website.
+          mkdir -p _build/antifraud _site
+          # Keep the existing antifraud site unchanged at the root URL.
           test -f Alfred_Analytics_Antifraud_Site.zip
           unzip -q Alfred_Analytics_Antifraud_Site.zip -d _build/antifraud
           test -d _build/antifraud/alfred_analytics_site
@@ -35,14 +35,14 @@ jobs:
           test -f _site/index.html
           test -f _site/assets/styles.css
           test -d _site/articles
-          # Deploy the Data Vault site at a separate URL.
-          test -f Data_Vault_Knowledge_Base.zip
-          unzip -q Data_Vault_Knowledge_Base.zip -d _build/data-vault
-          test -f _build/data-vault/site/index.html
-          test -f _build/data-vault/site/assets/app.js
-          test -f _build/data-vault/site/assets/auth.js
+
+          # Deploy Data Vault from its editable source tree, not from a stale archive.
+          test -f data-vault/site/index.html
+          test -f data-vault/site/assets/app.js
+          test -f data-vault/site/assets/auth.js
+          test -f data-vault/site/assets/supabase-config.js
           mkdir -p _site/data-vault
-          cp -a _build/data-vault/site/. _site/data-vault/
+          cp -a data-vault/site/. _site/data-vault/
           touch _site/.nojekyll _site/data-vault/.nojekyll
           test -f _site/data-vault/module-12.html
 
