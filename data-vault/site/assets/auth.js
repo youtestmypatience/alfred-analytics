@@ -6,6 +6,7 @@
   const allTopics=new Set((window.DV_MODULES||[]).flatMap(m=>m.sections.map(s=>`${m.num}:${s.id}`)));
   const query=(selector,parent=document)=>parent.querySelector(selector);
   let client=null, user=null, lastKnown=null, uploadTimer=null, uploading=false;
+  let providers={google:false,github:false}, providersLoaded=false;
 
   function notify(text){
     const div=document.createElement('div');div.className='toast';div.textContent=text;
@@ -46,27 +47,54 @@
     return {shade,close,render:html=>{query('#auth-contents',shade).innerHTML=html}};
   }
   function showDisabled(d){d.render('<p>Все 12 модулей доступны без регистрации. Прогресс сохраняется в этом браузере.</p><div class="auth-note">Облачные аккаунты пока не активированы администратором. Гостевой режим продолжает работать.</div>')}
+  // Keep the buttons disabled until Supabase confirms OAuth providers are enabled.
+  async function loadProviders(){
+    try{
+      const response=await fetch(config.url.replace(/\/$/,'')+'/auth/v1/settings',{
+        headers:{apikey:config.publishableKey},cache:'no-store'
+      });
+      if(!response.ok)throw Error('HTTP '+response.status);
+      const settings=await response.json();
+      providers={google:settings.external?.google===true,github:settings.external?.github===true};
+      providersLoaded=true;
+    }catch(error){
+      providers={google:false,github:false};providersLoaded=false;
+      console.warn('Cannot read public OAuth provider settings:',error.message);
+    }
+  }
   function showGuest(d){
-    d.render(`<p>Войдите для синхронизации между устройствами или продолжайте пользоваться сайтом без регистрации.</p><div class="auth-tabs"><button type="button" class="btn" id="auth-signin">Войти</button><button type="button" class="btn" id="auth-signup">Регистрация</button></div><form id="auth-form"><label>Email<input id="auth-email" type="email" autocomplete="email" required maxlength="240"></label><label>Пароль<input id="auth-password" type="password" autocomplete="current-password" required minlength="8" maxlength="128"></label><button class="primary" id="auth-submit" type="submit">Войти</button><div id="auth-status" aria-live="polite"></div></form><div class="auth-note">При регистрации может потребоваться подтверждение email. Никто не обязан создавать аккаунт для чтения материалов.</div>`);
-    let mode='signin';
-    function switchMode(next){mode=next;query('#auth-submit',d.shade).textContent=mode==='signup'?'Зарегистрироваться':'Войти';query('#auth-password',d.shade).autocomplete=mode==='signup'?'new-password':'current-password'}
-    query('#auth-signin',d.shade).onclick=()=>switchMode('signin');
-    query('#auth-signup',d.shade).onclick=()=>switchMode('signup');
-    query('#auth-form',d.shade).onsubmit=async event=>{
-      event.preventDefault();
-      const submit=query('#auth-submit',d.shade),status=query('#auth-status',d.shade);
-      submit.disabled=true;status.className='auth-spinner';status.textContent='Выполняется запрос…';
-      try{
-        const email=query('#auth-email',d.shade).value.trim();
-        const password=query('#auth-password',d.shade).value;
-        const result=mode==='signup'
-          ?await client.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname}})
-          :await client.auth.signInWithPassword({email,password});
-        if(result.error)throw result.error;
-        if(!result.data.session){status.className='auth-success';status.textContent='Проверьте электронную почту, подтвердите аккаунт и затем войдите.';return}
-        d.close();await beginSession(result.data.session.user,{offerGuestImport:true});
-      }catch(error){status.className='auth-error';status.textContent=error.message||'Ошибка авторизации'}finally{submit.disabled=false}
-    };
+    const canGoogle=providers.google,canGithub=providers.github;
+    const status=providersLoaded
+      ?(canGoogle||canGithub
+        ?'Выберите подключённый способ входа. Локальный режим доступен всегда.'
+        :'Вход через Google и GitHub ещё не активирован администратором в Supabase. Изучать материалы можно без аккаунта.')
+      :'Не удалось проверить способы входа. Гостевой режим доступен без подключения к серверу.';
+    d.render(`<p>Сохраняйте изученные темы между устройствами через Google или GitHub. Собственный домен и пароль для сайта не требуются.</p>
+      <div class="auth-social">
+        <button id="auth-google" type="button" class="btn auth-provider" ${canGoogle?'':'disabled'}><span class="auth-provider-icon">G</span><span>Войти через Google</span></button>
+        <button id="auth-github" type="button" class="btn auth-provider" ${canGithub?'':'disabled'}><span class="auth-provider-icon">GH</span><span>Войти через GitHub</span></button>
+      </div>
+      <button id="auth-guest" type="button" class="btn auth-guest">Продолжить без регистрации</button>
+      <div role="status" aria-live="polite" id="auth-status" class="auth-note">${status}</div>`);
+    query('#auth-guest',d.shade).onclick=d.close;
+    for(const [id,provider] of [['auth-google','google'],['auth-github','github']]){
+      const button=query('#'+id,d.shade);
+      if(button.disabled)continue;
+      button.onclick=async()=>{
+        const message=query('#auth-status',d.shade);
+        button.disabled=true;message.textContent='Переходим к авторизации…';
+        try{
+          const {error}=await client.auth.signInWithOAuth({
+            provider,options:{redirectTo:location.origin+location.pathname}
+          });
+          if(error)throw error;
+        }catch(error){
+          message.className='auth-error';
+          message.textContent='Не удалось начать вход: '+(error.message||'неизвестная ошибка');
+          button.disabled=false;
+        }
+      };
+    }
   }
   function showAccount(d){
     d.render(`<p>Вы вошли: <strong id="auth-who"></strong></p><div class="auth-note">Отметки синхронизируются по отдельным темам. Пока соединение недоступно, изменения остаются в локальном кеше этого аккаунта.</div><div style="display:grid;gap:10px;margin-top:18px"><button class="btn" id="auth-sync" type="button">Синхронизировать сейчас</button><button class="btn" id="auth-import-guest" type="button">Добавить отметки из гостевого режима</button><button class="btn" id="auth-logout" type="button">Выйти и перейти в гостевой режим</button></div><p class="dim" id="auth-status" aria-live="polite"></p>`);
@@ -216,8 +244,20 @@
       const sdk=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm');
       client=sdk.createClient(config.url,config.publishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
       const {data,error}=await client.auth.getSession();if(error)throw error;
-      if(data.session?.user)await beginSession(data.session.user);
+      if(data.session?.user){
+        await beginSession(data.session.user,{
+          offerGuestImport:sessionStorage.getItem(ACTIVE)!==data.session.user.id
+        });
+      }
       else if(sessionStorage.getItem(ACTIVE)){sessionStorage.removeItem(ACTIVE);location.reload()}
+      await loadProviders();
+      const oauthError=new URLSearchParams(location.search).get('error_description')||new URLSearchParams(location.search).get('error');
+      if(oauthError){
+        notify('Вход не завершён: '+oauthError.slice(0,160));
+        const url=new URL(location.href);
+        for(const key of ['error','error_description','error_code'])url.searchParams.delete(key);
+        history.replaceState(null,'',url.pathname+url.search+url.hash);
+      }
       client.auth.onAuthStateChange((event,session)=>{
         if(event==='SIGNED_OUT'&&sessionStorage.getItem(ACTIVE)){sessionStorage.removeItem(ACTIVE);location.reload()}
       });

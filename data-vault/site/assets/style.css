@@ -9,3 +9,11 @@
 .auth-dialog label{display:grid;gap:5px;font-size:13px}.auth-dialog input{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
 .auth-dialog button[disabled]{opacity:.55;cursor:wait}.auth-note{padding:11px;background:var(--bg);border-radius:9px;margin-top:16px;font-size:12px}.auth-error{color:#f9a2a2;font-size:12px;white-space:pre-wrap}
 .auth-success{color:var(--mint);font-size:12px}.auth-spinner{opacity:.7}body.auth-open{overflow:hidden}
+
+/* Optional passwordless social sign-in */
+.auth-social{display:grid;gap:12px;margin:18px 0 13px}
+.auth-provider{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:46px;border:1px solid var(--line);border-radius:10px;color:var(--ink);background:var(--bg);font-weight:600;font-size:14px}
+.auth-provider:not(:disabled):hover{border-color:var(--mint);background:var(--card)}
+.auth-provider-icon{display:inline-grid;place-items:center;min-width:28px;height:28px;padding:3px;border-radius:7px;background:var(--card);font-weight:700;font-size:13px}
+.auth-guest{width:100%;min-height:42px;background:transparent;border:1px solid var(--line);color:var(--dim);font-size:13px}
+.auth-dialog button.auth-provider:disabled{opacity:.46;cursor:not-allowed}
